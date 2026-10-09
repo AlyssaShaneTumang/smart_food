@@ -1,7 +1,7 @@
 
 FROM php:8.3-apache
 
-# Install required PHP dependencies
+# Install PHP extensions
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libonig-dev \
@@ -9,36 +9,31 @@ RUN apt-get update \
     && docker-php-ext-install pdo_mysql mysqli mbstring curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Ensure Apache loads only one MPM
-RUN find /etc/apache2/mods-enabled/ \
-        -maxdepth 1 -name 'mpm_*.load' -delete \
-    && a2enmod mpm_prefork rewrite \
-    && apache2ctl -t \
-    && apache2ctl -M | grep mpm
+# Enable Apache rewrite
+RUN a2enmod rewrite
 
-# Copy application files
+# Copy PHP application
 COPY . /var/www/html/
 
-# Set permissions
+# Set file permissions
 RUN chown -R www-data:www-data /var/www/html/
 
-# Enforce a single MPM again at container start (the runtime environment
-# can end up with extra MPMs enabled even though the build check passed)
+# Create startup script
 RUN printf '%s\n' \
-        '#!/bin/sh' \
-        'set -e' \
-        'rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf' \
-        'ln -s ../mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load' \
-        'ln -s ../mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf' \
-        'if [ -n "$PORT" ]; then' \
-        '  sed -i "s/^Listen 80$/Listen $PORT/" /etc/apache2/ports.conf' \
-        '  sed -i "s/<VirtualHost \*:80>/<VirtualHost *:$PORT>/" /etc/apache2/sites-enabled/000-default.conf' \
-        'fi' \
-        'grep -rl "LoadModule mpm_" /etc/apache2 || true' \
-        'apache2ctl -t' \
-        'exec apache2-foreground' \
-        > /usr/local/bin/start-app \
+    '#!/bin/sh' \
+    'set -e' \
+    'rm -f /etc/apache2/mods-enabled/mpm_event.load' \
+    'rm -f /etc/apache2/mods-enabled/mpm_worker.load' \
+    'rm -f /etc/apache2/mods-enabled/mpm_event.conf' \
+    'rm -f /etc/apache2/mods-enabled/mpm_worker.conf' \
+    'a2enmod mpm_prefork' \
+    'sed -i -E "s/^[[:space:]]*Listen[[:space:]]+[0-9]+/Listen 80/" /etc/apache2/ports.conf' \
+    'sed -i -E "s/<VirtualHost \*:[0-9]+>/<VirtualHost *:80>/" /etc/apache2/sites-enabled/000-default.conf' \
+    'apache2ctl -t' \
+    'exec apache2-foreground' \
+    > /usr/local/bin/start-app \
     && chmod +x /usr/local/bin/start-app
 
 EXPOSE 80
-RUN sed -i 's/^Listen 3306$/Listen 80/' /etc/apache2/ports.conf
+
+CMD ["/usr/local/bin/start-app"]
