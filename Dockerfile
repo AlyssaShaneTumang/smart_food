@@ -1,7 +1,7 @@
 
 FROM php:8.3-apache
 
-# Install required system libraries
+# Install required libraries
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libonig-dev \
@@ -13,14 +13,14 @@ RUN apt-get update \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Enable Apache rewrite
-RUN a2enmod rewrite
+# Ensure only prefork MPM is enabled
+RUN a2dismod mpm_event mpm_worker || true \
+    && a2enmod mpm_prefork rewrite
 
-# Copy website files
+# Copy PHP application
 COPY . /var/www/html/
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html/
 
-# Apache port
 EXPOSE 80
