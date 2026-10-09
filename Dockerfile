@@ -22,9 +22,22 @@ COPY . /var/www/html/
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html/
 
-# Check Apache configuration again when starting
-RUN printf '#!/bin/sh\nset -e\napache2ctl -t\nexec apache2-foreground\n' \
-    > /usr/local/bin/start-app \
+# Enforce a single MPM again at container start (the runtime environment
+# can end up with extra MPMs enabled even though the build check passed)
+RUN printf '%s\n' \
+        '#!/bin/sh' \
+        'set -e' \
+        'rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf' \
+        'ln -s ../mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load' \
+        'ln -s ../mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf' \
+        'if [ -n "$PORT" ]; then' \
+        '  sed -i "s/^Listen 80$/Listen $PORT/" /etc/apache2/ports.conf' \
+        '  sed -i "s/<VirtualHost \*:80>/<VirtualHost *:$PORT>/" /etc/apache2/sites-enabled/000-default.conf' \
+        'fi' \
+        'grep -rl "LoadModule mpm_" /etc/apache2 || true' \
+        'apache2ctl -t' \
+        'exec apache2-foreground' \
+        > /usr/local/bin/start-app \
     && chmod +x /usr/local/bin/start-app
 
 EXPOSE 80
