@@ -8,10 +8,11 @@ RUN apt-get update \
     && docker-php-ext-install pdo_mysql mysqli mbstring curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN a2enmod rewrite \
-    && a2dismod mpm_event mpm_worker || true \
-    && a2enmod mpm_prefork \
-    && apache2ctl -M
+# Disable other Apache MPM modules
+RUN rm -f /etc/apache2/mods-enabled/mpm_event.load \
+          /etc/apache2/mods-enabled/mpm_worker.load \
+    && a2enmod mpm_prefork rewrite \
+    && apache2ctl -t
 
 COPY . /var/www/html/
 
