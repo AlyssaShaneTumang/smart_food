@@ -41,5 +41,4 @@ RUN printf '%s\n' \
     && chmod +x /usr/local/bin/start-app
 
 EXPOSE 80
-
-CMD ["start-app"]
+RUN sed -i 's/^Listen 3306$/Listen 80/' /etc/apache2/ports.conf
