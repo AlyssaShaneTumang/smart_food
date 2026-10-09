@@ -1,0 +1,7 @@
+
+.git
+.env
+.env.*
+*.sql
+node_modules
+.vscode

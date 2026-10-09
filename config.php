@@ -1,50 +1,64 @@
+declare(strict_types=1);
 <?php
 
-declare(strict_types=1);
+
 
 // ============================================================
-// Database Configuration
+// DATABASE CONFIGURATION - RAILWAY MYSQL
 // ============================================================
-const DB_HOST = '127.0.0.1';
-const DB_NAME = 'smart_food_locker';
-const DB_USER = 'root';
-const DB_PASS = '';
+
+define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
+define('DB_PORT', getenv('DB_PORT') ?: '3306');
+define('DB_NAME', getenv('DB_NAME') ?: 'smart_food_locker');
+define('DB_USER', getenv('DB_USER') ?: 'root');
+define('DB_PASS', getenv('DB_PASS') ?: '');
 
 // ============================================================
-// ESP32 API Security
-// IMPORTANT: Use the exact same key in smart_food_locker.ino.
+// ESP32 API SECURITY
+// Must match the API key in your ESP32 sketch.
 // ============================================================
-const DEVICE_API_KEY = 'smarfoodlocker123';
+
+define('DEVICE_API_KEY', getenv('DEVICE_API_KEY') ?: '');
 
 // ============================================================
-// Locker
-// This prototype has a single locker compartment.
+// LOCKER CONFIGURATION
 // ============================================================
+
 const LOCKER_ID = 1;
 
 // ============================================================
-// Public Website URL
-// Used for the "Received Order" button in the customer's email.
-// Use the laptop's LAN IPv4 address (NOT localhost) so the
-// customer's phone on the same Wi-Fi can open the link.
+// PUBLIC WEBSITE URL - RAILWAY
 // ============================================================
-const APP_BASE_URL = 'http://192.168.100.5/smart_food_locker/web';
+
+define(
+    'APP_BASE_URL',
+    getenv('APP_BASE_URL')
+        ?: 'https://smartfood-production-1d4b.up.railway.app'
+);
 
 // ============================================================
-// Gmail SMTP Configuration
-// Use a Google App Password, NOT your normal Gmail password.
-// Example sender: smartfoodlocker.demo@gmail.com
+// GMAIL CONFIGURATION
 // ============================================================
-const GMAIL_ADDRESS = 'venvengueco@gmail.com';
-const GMAIL_APP_PASSWORD = 'jycm ifoe zwqt bnql';
-const GMAIL_FROM_NAME = 'Smart Food Delivery Locker';
+
+define('GMAIL_ADDRESS', getenv('GMAIL_ADDRESS') ?: '');
+define('GMAIL_APP_PASSWORD', getenv('GMAIL_APP_PASSWORD') ?: '');
+define(
+    'GMAIL_FROM_NAME',
+    getenv('GMAIL_FROM_NAME') ?: 'Smart Food Delivery Locker'
+);
+
+// ============================================================
+// MYSQL CONNECTION
+// ============================================================
 
 function db(): PDO
 {
     static $pdo = null;
 
     if ($pdo === null) {
+
         $dsn = 'mysql:host=' . DB_HOST
+            . ';port=' . DB_PORT
             . ';dbname=' . DB_NAME
             . ';charset=utf8mb4';
 
@@ -55,6 +69,7 @@ function db(): PDO
             [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
             ]
         );
     }
@@ -62,31 +77,56 @@ function db(): PDO
     return $pdo;
 }
 
+// ============================================================
+// JSON RESPONSE
+// ============================================================
+
 function jsonOut(array $data, int $code = 200): void
 {
     http_response_code($code);
+
     header('Content-Type: application/json; charset=utf-8');
+
     echo json_encode($data);
+
     exit;
 }
 
+// ============================================================
+// ESP32 API AUTHENTICATION
+// ============================================================
+
 function deviceAuth(): void
 {
+    $configuredKey = DEVICE_API_KEY;
+
+    if ($configuredKey === '') {
+        jsonOut([
+            'ok' => false,
+            'error' => 'Device API not configured.',
+        ], 503);
+    }
+
     $key = $_SERVER['HTTP_X_API_KEY']
         ?? ($_POST['api_key'] ?? '');
 
-    if (!hash_equals(DEVICE_API_KEY, (string) $key)) {
-        jsonOut(
-            [
-                'ok' => false,
-                'error' => 'Unauthorized',
-            ],
-            401
-        );
+    if (!hash_equals($configuredKey, (string) $key)) {
+        jsonOut([
+            'ok' => false,
+            'error' => 'Unauthorized',
+        ], 401);
     }
 }
 
+// ============================================================
+// HTML ESCAPE HELPER
+// ============================================================
+
 function h(?string $value): string
 {
-    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars(
+        (string) $value,
+        ENT_QUOTES,
+        'UTF-8'
+    );
 }
